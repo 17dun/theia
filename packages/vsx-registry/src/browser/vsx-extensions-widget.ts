@@ -57,27 +57,49 @@ export class VSXExtensionsWidget extends SourceTreeWidget {
         this.addClass('theia-vsx-extensions');
 
         this.id = generateExtensionWidgetId(this.options.id);
-        const title = this.options.title ?? this.computeTitle();
-        this.title.label = title;
-        this.title.caption = title;
 
         this.toDispose.push(this.extensionsSource);
         this.source = this.extensionsSource;
+
+        this.computeTitle();
+
+        this.toDispose.push(this.source.onDidChange(() => {
+            this.computeTitle();
+        }));
     }
 
-    protected computeTitle(): string {
+    protected async computeTitle(): Promise<void> {
+        const countLabel = await this.resolveCountLabel();
+        let label: string;
         switch (this.options.id) {
             case VSXExtensionsSourceOptions.INSTALLED:
-                return nls.localizeByDefault('Installed');
+                label = nls.localizeByDefault('Installed');
+                break;
             case VSXExtensionsSourceOptions.BUILT_IN:
-                return nls.localizeByDefault('Built-in');
+                label = nls.localizeByDefault('Built-in');
+                break;
             case VSXExtensionsSourceOptions.RECOMMENDED:
-                return nls.localizeByDefault('Recommended');
+                label = nls.localizeByDefault('Recommended');
+                break;
             case VSXExtensionsSourceOptions.SEARCH_RESULT:
-                return nls.localize('theia/vsx-registry/openVSX', 'Open VSX Registry');
+                label = nls.localize('theia/vsx-registry/openVSX', 'Open VSX Registry');
+                break;
             default:
-                return '';
+                label = '';
         }
+        const title = `${label} ${countLabel}`;
+        this.title.label = title;
+        this.title.caption = title;
+    }
+
+    protected async resolveCountLabel(): Promise<string> {
+        let label = '';
+        if (this.options.id !== VSXExtensionsSourceOptions.SEARCH_RESULT) {
+            const elements = await this.source?.getElements() || [];
+            label = `(${[...elements].length})`;
+        }
+        console.warn('count for: ', this.options.id, ':', label);
+        return label;
     }
 
     protected override handleClickEvent(node: TreeNode | undefined, event: React.MouseEvent<HTMLElement>): void {
