@@ -98,7 +98,6 @@ export class VSXExtensionsWidget extends SourceTreeWidget {
             const elements = await this.source?.getElements() || [];
             label = `(${[...elements].length})`;
         }
-        console.warn('count for: ', this.options.id, ':', label);
         return label;
     }
 
