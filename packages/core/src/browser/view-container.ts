@@ -57,9 +57,20 @@ export interface DescriptionWidget {
     onDidChangeDescription: Emitter<void>;
 }
 
+export interface BadgeWidget {
+    badgeNode: Node | undefined;
+    onDidChangeBadge: Emitter<void>;
+}
+
 export namespace DescriptionWidget {
     export function is(arg: Object | undefined): arg is DescriptionWidget {
         return !!arg && typeof arg === 'object' && 'onDidChangeDescription' in arg;
+    }
+}
+
+export namespace BadgeWidget {
+    export function is(arg: Object | undefined): arg is BadgeWidget {
+        return !!arg && typeof arg === 'object' && 'onDidChangeBadge' in arg;
     }
 }
 
@@ -924,6 +935,8 @@ export class ViewContainerPart extends BaseWidget {
     readonly onDidMove = this.onPartMovedEmitter.event;
     protected readonly onDidChangeDescriptionEmitter = new Emitter<void>();
     readonly onDidChangeDescription = this.onDidChangeDescriptionEmitter.event;
+    protected readonly onDidChangeBadgeEmitter = new Emitter<void>();
+    readonly onDidChangeBadge = this.onDidChangeBadgeEmitter.event;
 
     protected readonly toolbar: TabBarToolbar;
 
@@ -959,6 +972,11 @@ export class ViewContainerPart extends BaseWidget {
             this.toDispose.push(this.wrapped?.onDidChangeDescription.event(fireDescriptionChanged));
         }
 
+        if (BadgeWidget.is(this.wrapped)) {
+            const fireBadgeChanged = () => this.onDidChangeBadgeEmitter.fire(undefined);
+            this.toDispose.push(this.wrapped?.onDidChangeBadge.event(fireBadgeChanged));
+        }
+
         const { header, body, disposable } = this.createContent();
         this.header = header;
         this.body = body;
@@ -975,6 +993,7 @@ export class ViewContainerPart extends BaseWidget {
             this.contextMenuEmitter,
             this.onTitleChangedEmitter,
             this.onDidChangeDescriptionEmitter,
+            this.onDidChangeBadgeEmitter,
             this.registerContextMenu(),
             this.onDidFocusEmitter,
             // focus event does not bubble, capture it
@@ -1142,6 +1161,8 @@ export class ViewContainerPart extends BaseWidget {
         const description = document.createElement('span');
         description.classList.add('description');
 
+        const badgeContainer = document.createElement('div');
+
         const updateTitle = () => {
             if (this.currentContainerId !== this.originalContainerId && this.originalContainerTitle?.label) {
                 // Creating a title in format: <original_container_title>: <part_title>.
@@ -1154,20 +1175,31 @@ export class ViewContainerPart extends BaseWidget {
         const updateDescription = () => {
             description.innerText = DescriptionWidget.is(this.wrapped) && !this.collapsed && this.wrapped.description || '';
         };
+        const updateBadge = () => {
+            const badge = BadgeWidget.is(this.wrapped) && this.wrapped.badgeNode;
+            if (badge) {
+                badgeContainer.replaceChildren(badge);
+            } else {
+                badgeContainer.style.display = 'none';
+            }
+        };
 
         updateTitle();
         updateCaption();
         updateDescription();
+        updateBadge();
 
         disposable.pushAll([
             this.onTitleChanged(updateTitle),
             this.onTitleChanged(updateCaption),
             this.onDidMove(updateTitle),
             this.onDidChangeDescription(updateDescription),
+            this.onDidChangeBadge(updateBadge),
             this.onCollapsed(updateDescription)
         ]);
         header.appendChild(title);
         header.appendChild(description);
+        header.appendChild(badgeContainer);
 
         return {
             header,

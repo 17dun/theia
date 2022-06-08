@@ -19,6 +19,8 @@ import { TreeNode } from '@theia/core/lib/browser';
 import { SourceTreeWidget } from '@theia/core/lib/browser/source-tree';
 import { VSXExtensionsSource, VSXExtensionsSourceOptions } from './vsx-extensions-source';
 import { nls } from '@theia/core/lib/common/nls';
+import { BadgeWidget } from '@theia/core/lib/browser/view-container';
+import { Emitter } from '@theia/core/lib/common';
 
 @injectable()
 export class VSXExtensionsWidgetOptions extends VSXExtensionsSourceOptions {
@@ -28,7 +30,7 @@ export class VSXExtensionsWidgetOptions extends VSXExtensionsSourceOptions {
 export const generateExtensionWidgetId = (widgetId: string): string => VSXExtensionsWidget.ID + ':' + widgetId;
 
 @injectable()
-export class VSXExtensionsWidget extends SourceTreeWidget {
+export class VSXExtensionsWidget extends SourceTreeWidget implements BadgeWidget {
 
     static ID = 'vsx-extensions';
 
@@ -68,8 +70,19 @@ export class VSXExtensionsWidget extends SourceTreeWidget {
         }));
     }
 
+    private _badgeNode: Node | undefined = undefined;
+    get badgeNode(): Node | undefined {
+        return this._badgeNode;
+    }
+
+    set badgeNode(node: Node | undefined) {
+        this._badgeNode = node;
+        this.onDidChangeBadge.fire();
+    }
+
+    public onDidChangeBadge: Emitter<void> = new Emitter<void>();
+
     protected async computeTitle(): Promise<void> {
-        const countLabel = await this.resolveCountLabel();
         let label: string;
         switch (this.options.id) {
             case VSXExtensionsSourceOptions.INSTALLED:
@@ -87,16 +100,35 @@ export class VSXExtensionsWidget extends SourceTreeWidget {
             default:
                 label = '';
         }
-        const title = `${label} ${countLabel}`;
+        const title = `${label}`;
         this.title.label = title;
         this.title.caption = title;
+
+        const countLabel = await this.resolveCountLabel();
+        this.updateBadge(`${countLabel}`);
+    }
+
+    protected updateBadge(innerText: string): void {
+        if (innerText.length === 0) {
+            this.badgeNode = undefined;
+            return;
+        }
+
+        const badge = document.createElement('span');
+        badge.classList.add('notification-count');
+        badge.innerText = innerText;
+
+        const badgeContainer = document.createElement('div');
+        badgeContainer.classList.add('notification-count-container');
+        badgeContainer.appendChild(badge);
+        this.badgeNode = badgeContainer;
     }
 
     protected async resolveCountLabel(): Promise<string> {
         let label = '';
         if (this.options.id !== VSXExtensionsSourceOptions.SEARCH_RESULT) {
             const elements = await this.source?.getElements() || [];
-            label = `(${[...elements].length})`;
+            label = `${[...elements].length}`;
         }
         return label;
     }
